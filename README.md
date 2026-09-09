@@ -158,6 +158,14 @@ pnpm check        # lint, type-check, build
 pnpm format       # prettier
 ```
 
+CI runs those checks and then a smoke test of the built server: it points the CLI at a fixture
+Claude folder and asserts the page comes up, the project and its memory are read back, a
+cross-site request is refused, and nothing in the folder was written to.
+
+A release is a tag. `git tag v0.2.0 && git push --tags` verifies the tag matches `package.json`,
+attaches the tarball to a GitHub Release, and publishes to npm with provenance through trusted
+publishing — no token is stored anywhere.
+
 The server is plain `node:http` with no framework; the page is React and Tailwind, with TanStack
 Query for the reads. `src/server` reads the transcripts, `src/client` draws them, and `src/shared`
 holds the types and the routes both ends agree on.
