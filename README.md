@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Vincweb/claude-context-viewer/main/docs/media/banner.png" alt="claude-context — see what Claude Code actually loads into a session" width="100%">
+  <img src="docs/media/banner.png" alt="claude-context — see what Claude Code actually loads into a session" width="100%">
 </p>
 
 # claude-context-viewer
@@ -17,7 +17,7 @@ session, down to the exact text — and whether the auto-memory around it still 
 npx claude-context-viewer
 ```
 
-[![The project list: one folder per working directory, with the worktrees made from a checkout drawn joined underneath it, and the throwaway folders behind a filter.](https://raw.githubusercontent.com/Vincweb/claude-context-viewer/main/docs/media/projects.png)](https://raw.githubusercontent.com/Vincweb/claude-context-viewer/main/docs/media/projects.png)
+[![The project list: one folder per working directory, with the worktrees made from a checkout drawn joined underneath it, and the throwaway folders behind a filter.](docs/media/projects.png)](docs/media/projects.png)
 
 <sup>Screenshot taken against an example folder of invented projects.</sup>
 

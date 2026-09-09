@@ -1,0 +1,69 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      # To create the GitHub Release, and for the OIDC exchange npm trusted publishing runs on.
+      contents: write
+      id-token: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+
+      # The tag has to agree with what is about to be published, or the release notes and the
+      # registry disagree about what this version is.
+      - name: Check the tag matches the version
+        run: |
+          version=v$(node -p "require('./package.json').version")
+          [ "$version" = "$GITHUB_REF_NAME" ] \
+            || { echo "tag $GITHUB_REF_NAME does not match package.json ($version)"; exit 1; }
+
+      # The README carries relative image paths, which GitHub resolves and a package page does
+      # not. Point them at this tag's raw files, in the tarball only — the repository keeps them
+      # relative, and an old version's page keeps showing the images it shipped with.
+      - name: Absolutise the README images for the package page
+        run: |
+          sed -i 's#docs/media/#https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/docs/media/#g' README.md
+          grep -c 'raw.githubusercontent.com' README.md
+
+      - name: Pack the tarball
+        id: pack
+        run: echo "file=$(npm pack --silent | tail -1)" >> "$GITHUB_OUTPUT"
+
+      # The tarball hangs off the release too, so the built package can be installed straight from
+      # GitHub without going through a registry at all.
+      - name: Create the GitHub Release
+        run: |
+          gh release create "$TAG" "$FILE" --title "$TAG" --generate-notes --notes "
+          \`\`\`bash
+          npx claude-context-viewer@${TAG#v}
+          \`\`\`
+
+          Or install this release without a registry:
+
+              npm i -g https://github.com/$REPO/releases/download/$TAG/$FILE
+          "
+        env:
+          TAG: ${{ github.ref_name }}
+          FILE: ${{ steps.pack.outputs.file }}
+          REPO: ${{ github.repository }}
+
+      # No token: npm trusts this workflow by name (Vincweb/claude-context-viewer, release.yml),
+      # exchanges the OIDC id-token for a short-lived credential, and attests the provenance from
+      # it. Renaming this file breaks that trust — update it on npmjs.com first.
+      - name: Publish to npm
+        run: pnpm publish --access public --no-git-checks --provenance

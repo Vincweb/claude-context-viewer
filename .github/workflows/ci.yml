@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm type-check
+      - run: pnpm build
+
+      # The build only proves it compiles. This proves the thing it compiles to reads a Claude
+      # folder, serves the page, and still refuses a request that did not come from that page.
+      - name: Smoke-test the built server against a fixture folder
+        run: |
+          set -euo pipefail
+          home="$RUNNER_TEMP/claude"
+          mkdir -p "$home/projects/-tmp-demo/memory"
+          printf '%s\n' '{"type":"user","cwd":"/tmp/demo","gitBranch":"main","version":"2.1.0","timestamp":"2026-01-01T00:00:00.000Z","message":{"role":"user","content":"hello"}}' \
+            > "$home/projects/-tmp-demo/00000000-0000-4000-8000-000000000000.jsonl"
+          printf -- '---\nname: a-memory\ndescription: one fact\nmetadata:\n  type: reference\n---\n\nA fact.\n' \
+            > "$home/projects/-tmp-demo/memory/a-memory.md"
+          printf -- '- [A memory](a-memory.md) — one fact\n' > "$home/projects/-tmp-demo/memory/MEMORY.md"
+
+          CLAUDE_CONFIG_DIR="$home" node dist/cli.js --port 4700 &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+
+          for _ in $(seq 1 40); do
+            sleep 0.5
+            curl -sf -o /dev/null http://127.0.0.1:4700/ && break
+          done
+
+          curl -sf -o /dev/null http://127.0.0.1:4700/ \
+            || { echo "the page did not come up"; exit 1; }
+          curl -sf -o /dev/null http://127.0.0.1:4700/favicon.svg \
+            || { echo "the bundle is not being served"; exit 1; }
+
+          # It has to actually read the folder, not merely answer.
+          curl -sf "http://127.0.0.1:4700/api/projects?home=$home" \
+            | grep -q '"label":"demo"' \
+            || { echo "the fixture project was not found"; exit 1; }
+          curl -sf "http://127.0.0.1:4700/api/project?home=$home&slug=-tmp-demo" \
+            | grep -q '"name":"a-memory"' \
+            || { echo "the fixture memory was not read"; exit 1; }
+
+          # A page on another origin must not be able to read these transcripts.
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'sec-fetch-site: cross-site' \
+            "http://127.0.0.1:4700/api/projects?home=$home")
+          [ "$code" = "403" ] \
+            || { echo "a cross-site request was not refused (got $code)"; exit 1; }
+
+          # And nothing may have been written to the folder it was pointed at.
+          [ "$(find "$home" -newer "$home/projects/-tmp-demo/memory/MEMORY.md" -type f | wc -l)" -eq 0 ] \
+            || { echo "the server wrote to the Claude folder"; exit 1; }
