@@ -1,0 +1,5 @@
+# Generated, and prettier would only fight the package manager over it.
+pnpm-lock.yaml
+
+# Build output.
+dist
