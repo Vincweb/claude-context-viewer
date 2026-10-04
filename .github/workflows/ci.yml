@@ -64,6 +64,13 @@ jobs:
           [ "$code" = "403" ] \
             || { echo "a cross-site request was not refused (got $code)"; exit 1; }
 
+          # Nor a page that rebinds its own domain to 127.0.0.1, which the browser calls same-origin.
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'host: evil.example:4700' -H 'sec-fetch-site: same-origin' \
+            "http://127.0.0.1:4700/api/projects?home=$home")
+          [ "$code" = "403" ] \
+            || { echo "a request for a foreign host was not refused (got $code)"; exit 1; }
+
           # And nothing may have been written to the folder it was pointed at.
           [ "$(find "$home" -newer "$home/projects/-tmp-demo/memory/MEMORY.md" -type f | wc -l)" -eq 0 ] \
             || { echo "the server wrote to the Claude folder"; exit 1; }

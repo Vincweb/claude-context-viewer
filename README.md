@@ -147,8 +147,9 @@ knowing about before reading too much into a number.
   measurable; the memories that actually fired are not. They show up only when Claude opened one as
   a file, which lands in the runtime group like any other read.
 
-Nothing is written. The server binds `127.0.0.1` and refuses cross-site requests, because
-transcripts hold whatever was said and pasted into a session.
+Nothing is written. The server binds `127.0.0.1`, refuses cross-site requests, and answers only to
+`localhost`, an IP address or the name given to `--host` — so a page that rebinds its own domain to
+`127.0.0.1` cannot read it either. Transcripts hold whatever was said and pasted into a session.
 
 ## Development
 
@@ -162,7 +163,8 @@ pnpm format       # prettier
 
 CI runs those checks and then a smoke test of the built server: it points the CLI at a fixture
 Claude folder and asserts the page comes up, the project and its memory are read back, a
-cross-site request is refused, and nothing in the folder was written to.
+cross-site request and a request addressed to a foreign host are both refused, and nothing in the
+folder was written to.
 
 A release is a tag. `git tag v0.2.0 && git push --tags` verifies the tag matches `package.json`,
 attaches the tarball to a GitHub Release, and publishes to npm with provenance through trusted

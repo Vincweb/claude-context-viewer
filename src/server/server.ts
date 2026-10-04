@@ -4,6 +4,7 @@ import { openInBrowser, pageUrl } from './browser'
 import { readProjectExtras } from './extras'
 import { readLinkedFile } from './files'
 import { checkHome, discoverHomes } from './homes'
+import { isAllowedHost } from './host'
 import { defaultHome, resolveHome } from './paths'
 import { watchProjects } from './watch'
 import {
@@ -69,6 +70,12 @@ export const serveContextViewer = ({
   const server = http.createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost')
     try {
+      if (!isAllowedHost(request.headers.host, host)) {
+        response.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' })
+        response.end('This server only answers to localhost.\n')
+        return
+      }
+
       if (url.pathname.startsWith('/api/')) {
         if (isForeign(request)) {
           json(response, { error: 'these transcripts are only served to the page itself' }, 403)
