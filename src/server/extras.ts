@@ -79,7 +79,7 @@ export const readProjectExtras = (home: string, slug: string) => {
       // Folded into the sub-agent transcript it describes rather than listed on its own.
       if (entry.name.endsWith('.meta.json')) continue
 
-      let bytes = 0
+      let bytes: number
       try {
         bytes = fs.statSync(full).size
       } catch {

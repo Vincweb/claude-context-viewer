@@ -266,7 +266,7 @@ const collectSeenPaths = (dir: string) => {
 
   for (const { file } of transcriptsIn(dir)) {
     const inThisSession = new Set<string>()
-    let raw = ''
+    let raw: string
     try {
       raw = fs.readFileSync(file, 'utf8')
     } catch {

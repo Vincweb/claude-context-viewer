@@ -50,7 +50,7 @@ const contentOf = (file: string) => {
  * names them, and `~` means the home directory.
  */
 const importsIn = (file: string) => {
-  let raw = ''
+  let raw: string
   try {
     raw = fs.readFileSync(file, 'utf8')
   } catch {
