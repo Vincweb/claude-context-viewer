@@ -19,6 +19,7 @@ jobs:
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm type-check
+      - run: pnpm test
       - run: pnpm build
 
       # The build only proves it compiles. This proves the thing it compiles to reads a Claude

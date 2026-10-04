@@ -27,6 +27,20 @@ export default tseslint.config(
     languageOptions: { globals: globals.browser },
   },
   {
+    // node:test returns a promise from test() that the runner itself awaits.
+    files: ['src/**/*.test.ts'],
+    rules: {
+      '@typescript-eslint/no-floating-promises': [
+        'error',
+        {
+          allowForKnownSafeCalls: [
+            { from: 'package', package: 'node:test', name: ['test', 'describe', 'it'] },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // The config file itself is not part of a typed project.
     files: ['eslint.config.js'],
     extends: [tseslint.configs.disableTypeChecked],

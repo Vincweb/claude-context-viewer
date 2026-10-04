@@ -155,7 +155,8 @@ transcripts hold whatever was said and pasted into a session.
 ```bash
 pnpm install
 pnpm dev          # API from source on :4700, Vite on :4701
-pnpm check        # lint, type-check, build
+pnpm test         # unit tests, node:test through tsx
+pnpm check        # lint, type-check, test, build
 pnpm format       # prettier
 ```
 

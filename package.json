@@ -49,9 +49,10 @@
     "build": "tsup && vite build",
     "lint": "eslint .",
     "type-check": "tsc",
+    "test": "tsx --test 'src/**/*.test.ts'",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "pnpm lint && pnpm type-check && pnpm build",
+    "check": "pnpm lint && pnpm type-check && pnpm test && pnpm build",
     "prepublishOnly": "pnpm check"
   },
   "devDependencies": {
