@@ -14,7 +14,7 @@ Usage
   npx claude-context-viewer
 
 Options
-  -p, --port <n>      port to serve on (default: ${DEFAULT_PORT})
+  -p, --port <n>      port to serve on (default: ${DEFAULT_PORT}, or the next free one)
       --host <host>   host to bind (default: ${DEFAULT_HOST})
       --no-open       do not open the page in the browser
   -h, --help          show this message
@@ -64,6 +64,8 @@ export const run = (argv = process.argv.slice(2)): number | null => {
     host: valueOf(argv, '--host') ?? DEFAULT_HOST,
     version: readVersion(),
     open: !has(argv, '--no-open'),
+    // A port asked for is that port or nothing; the default may step past a busy one.
+    fallback: valueOf(argv, '-p', '--port') === undefined,
   })
   return null
 }

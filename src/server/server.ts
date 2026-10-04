@@ -38,6 +38,29 @@ const isForeign = (request: http.IncomingMessage) => {
   return typeof site === 'string' && site !== 'same-origin' && site !== 'none'
 }
 
+/**
+ * The version of the claude-context-viewer answering at `url`, or null when nothing does or
+ * something else holds the port.
+ */
+const runningViewer = async (url: string) => {
+  try {
+    const response = await fetch(`${url}/api/homes`, { signal: AbortSignal.timeout(1000) })
+    const body: unknown = await response.json()
+    return body &&
+      typeof body === 'object' &&
+      'candidates' in body &&
+      'version' in body &&
+      typeof body.version === 'string'
+      ? body.version
+      : null
+  } catch {
+    return null
+  }
+}
+
+/** How many ports past the default to try before giving up, when the port was not asked for. */
+const PORT_ATTEMPTS = 10
+
 /** The routes that read one Claude folder, and therefore need `?home=` to resolve. */
 const HOME_ROUTES = [
   '/api/projects',
@@ -54,12 +77,15 @@ export const serveContextViewer = ({
   host = '127.0.0.1',
   version = '',
   open = false,
+  fallback = false,
 }: {
   port: number
   host?: string
   version?: string
   /** Hand the page to the default browser once the port is bound. */
   open?: boolean
+  /** Move on to the next port when this one is held by something else. */
+  fallback?: boolean
 }) => {
   const built = clientIsBuilt()
   // Set by `pnpm dev`: the page then lives on the Vite dev server, not in dist/client.
@@ -227,22 +253,56 @@ export const serveContextViewer = ({
     }
   })
 
+  let current = port
+
+  /**
+   * Running the command twice is the common case now that it opens the page: the second run hands
+   * over to the first rather than failing. Anything else on the port is stepped past, unless that
+   * port was asked for. Neither happens in dev, where Vite proxies to this exact port and the
+   * copy holding it is most likely the one `tsx watch` is still stopping.
+   */
+  const portTaken = async () => {
+    if (!devWeb) {
+      const url = pageUrl(host, current)
+      const running = await runningViewer(url)
+      if (running !== null) {
+        console.log(`claude-context-viewer ${running} is already running → ${url}`)
+        if (version && running !== version) console.log(`Stop it to run ${version} instead.`)
+        if (open) openInBrowser(url)
+        process.exit(0)
+      }
+      if (fallback && current < port + PORT_ATTEMPTS) {
+        current += 1
+        server.listen(current, host)
+        return
+      }
+    }
+    console.error(
+      current === port
+        ? `✗ port ${port} is already in use — pass --port <n> to pick another`
+        : `✗ ports ${port} to ${current} are all in use — pass --port <n> to pick another`,
+    )
+    process.exit(1)
+  }
+
   server.on('error', (error) => {
     if (error && typeof error === 'object' && 'code' in error && error.code === 'EADDRINUSE') {
-      console.error(`✗ port ${port} is already in use — pass --port <n> to pick another`)
-      process.exit(1)
+      void portTaken()
+      return
     }
     throw error
   })
 
-  server.listen(port, host, () => {
+  server.once('listening', () => {
     if (!built) console.warn(process.env.CLAUDE_CONTEXT_DEV ? DEV_CLIENT : MISSING_CLIENT)
-    const url = devWeb ?? pageUrl(host, port)
+    const url = devWeb ?? pageUrl(host, current)
+    if (current !== port) console.log(`Port ${port} is taken, so this one is on ${current}.`)
     console.log(`claude-context-viewer → ${url}`)
     console.log(`Default folder ${defaultHome()}; pick another in the page. Ctrl-C to stop.`)
     // Never in dev: `tsx watch` restarts this server on every edit, and each would open a tab.
     if (open && !devWeb) openInBrowser(url)
   })
+  server.listen(port, host)
 
   const shutdown = () => {
     server.close(() => process.exit(0))

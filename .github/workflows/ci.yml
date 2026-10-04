@@ -71,6 +71,12 @@ jobs:
           [ "$code" = "403" ] \
             || { echo "a request for a foreign host was not refused (got $code)"; exit 1; }
 
+          # Running it a second time hands over to the copy already serving, rather than failing.
+          # The port is named so a run that misses the first one exits instead of moving on.
+          second=$(CLAUDE_CONFIG_DIR="$home" node dist/cli.js --port 4700 --no-open 2>&1) || true
+          grep -q 'already running' <<<"$second" \
+            || { echo "a second run did not find the first: $second"; exit 1; }
+
           # And nothing may have been written to the folder it was pointed at.
           [ "$(find "$home" -newer "$home/projects/-tmp-demo/memory/MEMORY.md" -type f | wc -l)" -eq 0 ] \
             || { echo "the server wrote to the Claude folder"; exit 1; }
