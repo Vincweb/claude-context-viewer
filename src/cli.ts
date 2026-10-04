@@ -16,12 +16,13 @@ Usage
 Options
   -p, --port <n>      port to serve on (default: ${DEFAULT_PORT})
       --host <host>   host to bind (default: ${DEFAULT_HOST})
+      --no-open       do not open the page in the browser
   -h, --help          show this message
   -v, --version       show the version
 
-Opens on a picker offering ${defaultHome()} and any other Claude folder found;
-set CLAUDE_CONFIG_DIR to change the default. Nothing is written, and the page is
-served to this machine only.
+Opens the page in the default browser, on a picker offering ${defaultHome()}
+and any other Claude folder found; set CLAUDE_CONFIG_DIR to change the default.
+Nothing is written, and the page is served to this machine only.
 `
 
 const readVersion = () => {
@@ -62,6 +63,7 @@ export const run = (argv = process.argv.slice(2)): number | null => {
     port,
     host: valueOf(argv, '--host') ?? DEFAULT_HOST,
     version: readVersion(),
+    open: !has(argv, '--no-open'),
   })
   return null
 }

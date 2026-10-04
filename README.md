@@ -54,13 +54,14 @@ npm i -g claude-context-viewer
 claude-context-viewer
 ```
 
-It opens on `http://127.0.0.1:4700`. Node 20 or newer, no runtime dependencies, and nothing leaves
-the machine.
+It serves `http://127.0.0.1:4700` and opens it in your default browser. Node 20 or newer, no
+runtime dependencies, and nothing leaves the machine.
 
 ```
 Options
   -p, --port <n>      port to serve on (default: 4700)
       --host <host>   host to bind (default: 127.0.0.1)
+      --no-open       do not open the page in the browser
   -h, --help          show this message
   -v, --version       show the version
 ```

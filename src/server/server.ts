@@ -1,5 +1,6 @@
 import http from 'http'
 import path from 'path'
+import { openInBrowser, pageUrl } from './browser'
 import { readProjectExtras } from './extras'
 import { readLinkedFile } from './files'
 import { checkHome, discoverHomes } from './homes'
@@ -51,10 +52,13 @@ export const serveContextViewer = ({
   port,
   host = '127.0.0.1',
   version = '',
+  open = false,
 }: {
   port: number
   host?: string
   version?: string
+  /** Hand the page to the default browser once the port is bound. */
+  open?: boolean
 }) => {
   const built = clientIsBuilt()
   // Set by `pnpm dev`: the page then lives on the Vite dev server, not in dist/client.
@@ -226,8 +230,11 @@ export const serveContextViewer = ({
 
   server.listen(port, host, () => {
     if (!built) console.warn(process.env.CLAUDE_CONTEXT_DEV ? DEV_CLIENT : MISSING_CLIENT)
-    console.log(`claude-context-viewer → ${devWeb ?? `http://${host}:${port}`}`)
+    const url = devWeb ?? pageUrl(host, port)
+    console.log(`claude-context-viewer → ${url}`)
     console.log(`Default folder ${defaultHome()}; pick another in the page. Ctrl-C to stop.`)
+    // Never in dev: `tsx watch` restarts this server on every edit, and each would open a tab.
+    if (open && !devWeb) openInBrowser(url)
   })
 
   const shutdown = () => {

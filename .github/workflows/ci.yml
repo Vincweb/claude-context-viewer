@@ -34,7 +34,7 @@ jobs:
             > "$home/projects/-tmp-demo/memory/a-memory.md"
           printf -- '- [A memory](a-memory.md) — one fact\n' > "$home/projects/-tmp-demo/memory/MEMORY.md"
 
-          CLAUDE_CONFIG_DIR="$home" node dist/cli.js --port 4700 &
+          CLAUDE_CONFIG_DIR="$home" node dist/cli.js --port 4700 --no-open &
           server=$!
           trap 'kill "$server" 2>/dev/null || true' EXIT
 
