@@ -562,6 +562,24 @@ export const fr: Strings = {
     statMessages: 'prompts / réponses',
     lowerBound:
       'Une borne basse : la transcription enregistre ces couches, schémas des outils compris, mais pas l’habillage que Claude Code met autour de chacune. Les comptes sont des caractères divisés par quatre. Une partie de la pile arrive en cours de session — un CLAUDE.md imbriqué se charge la première fois que Claude touche un fichier en dessous.',
+    scope: 'Quelles couches compter',
+    scopes: { current: 'En contexte maintenant', whole: 'Toute la session' },
+    compacted: (
+      count: number,
+      trigger: string | null,
+      before: string | null,
+      after: string | null,
+    ) =>
+      [
+        `Compactée ${count === 1 ? 'une fois' : `${count} fois`}`,
+        trigger === 'auto'
+          ? ' — la dernière automatiquement'
+          : trigger === 'manual'
+            ? ' — la dernière à la main'
+            : '',
+        before && after ? `, de ${before} à ${after} tokens mesurés par l’API` : '',
+        '. Toute la pile a été réinjectée à partir de là.',
+      ].join(''),
     memoryFrom: 'Mémoire lue depuis ',
     worktreeShared: ' — un worktree, donc ce dossier est partagé avec son dépôt d’origine.',
     sessionId: (id: string) => `session ${id}`,
@@ -607,6 +625,7 @@ export const fr: Strings = {
       plan_mode: 'Mode plan',
       plan_mode_exit: 'Sortie du mode plan',
       plan_file_reference: 'Fichier de plan',
+      compact_summary: 'Résumé de compaction',
     },
   },
 }

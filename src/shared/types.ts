@@ -132,15 +132,42 @@ export type Layer = {
   blocks: LayerBlock[]
 }
 
+/**
+ * One compaction: the conversation summarised, and the context started over from that summary with
+ * the whole stack injected again.
+ */
+export type Compaction = {
+  at: string | null
+  /** `auto` when the context filled up, `manual` for `/compact`. */
+  trigger: string | null
+  /** Measured by the API rather than estimated: the context just before, and just after. */
+  preTokens: number | null
+  postTokens: number | null
+}
+
+/** A set of layers, folded, with their sum. */
+export type LayerFold = {
+  layers: Layer[]
+  chars: number
+  tokens: number
+}
+
 export type SessionPayload = {
   slug: string
   session: SessionSummary
   cwd: string | null
   isWorktree: boolean
   memoryRoot: string | null
+  /** Everything the session loaded, from its first record to its last. */
   layers: Layer[]
   chars: number
   tokens: number
+  compactions: Compaction[]
+  /**
+   * What is in context now: the layers since the last compaction, plus the few records it kept.
+   * Null for a session never compacted, where it would be the same as the whole.
+   */
+  current: LayerFold | null
   /** Messages are counted but not shown: this page is about what is injected, not what was said. */
   messages: { user: number; assistant: number }
 }

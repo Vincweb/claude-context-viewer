@@ -1,6 +1,12 @@
 import fs from 'fs'
 import path from 'path'
-import type { ProjectSummary, SessionPayload, SessionSummary } from '../shared/types'
+import type {
+  Compaction,
+  LayerFold,
+  ProjectSummary,
+  SessionPayload,
+  SessionSummary,
+} from '../shared/types'
 import { readInstructionSources } from './instructions'
 import { foldLayers } from './layers'
 import { readMemory } from './memory'
@@ -19,6 +25,21 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
 const asString = (value: unknown) => (typeof value === 'string' ? value : null)
+
+const asNumber = (value: unknown) => (typeof value === 'number' ? value : null)
+
+const asStrings = (value: unknown) =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : null
+
+/** A message's text, whether it was written as one string or as a list of parts. */
+const textOf = (content: unknown) => {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return null
+  const parts = content.filter(isRecord).map((part) => asString(part.text))
+  return parts.some((part) => part !== null)
+    ? parts.filter((part) => part !== null).join('\n')
+    : null
+}
 
 const parseLine = (line: string) => {
   if (!line.trim()) return null
@@ -333,26 +354,42 @@ export const projectCwd = (home: string, slug: string) => {
   return newest ? peek(newest.file).cwd : null
 }
 
+const fold = (attachments: { type: string; value: Record<string, unknown> }[]): LayerFold => {
+  const layers = foldLayers(attachments)
+  const chars = layers.reduce((total, layer) => total + layer.chars, 0)
+  return { layers, chars, tokens: Math.round(chars / 4) }
+}
+
 export const readSession = (home: string, slug: string, id: string): SessionPayload | null => {
   const file = resolveTranscript(home, slug, id)
   if (!file) return null
 
-  const attachments: { type: string; value: Record<string, unknown> }[] = []
+  const attachments: { type: string; value: Record<string, unknown>; uuid: string | null }[] = []
   const messages = { user: 0, assistant: 0 }
   const meta = peek(file)
   let lastActive: string | null = null
+
+  /**
+   * A compaction replaces the conversation with a summary and injects the whole stack again, so
+   * what is in context now starts at the last one. It keeps a handful of earlier records in place,
+   * named by uuid — those are still in context too.
+   */
+  const compactions: Compaction[] = []
+  let since = 0
+  let kept = new Set<string>()
 
   for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
     const record = parseLine(line)
     if (!record) continue
     lastActive = asString(record.timestamp) ?? lastActive
+    const uuid = asString(record.uuid)
 
     if (record.type === 'user') messages.user += 1
     if (record.type === 'assistant') messages.assistant += 1
 
     if (record.type === 'attachment' && isRecord(record.attachment)) {
       const type = asString(record.attachment.type)
-      if (type) attachments.push({ type, value: record.attachment })
+      if (type) attachments.push({ type, value: record.attachment, uuid })
     }
 
     // Hooks can add context of their own, and it is injected the same way the rest is.
@@ -360,12 +397,41 @@ export const readSession = (home: string, slug: string, id: string): SessionPayl
       attachments.push({
         type: 'hook_context',
         value: { type: 'hook_context', text: record.hookAdditionalContext },
+        uuid,
       })
+    }
+
+    if (record.type === 'system' && record.subtype === 'compact_boundary') {
+      const metadata = isRecord(record.compactMetadata) ? record.compactMetadata : {}
+      compactions.push({
+        at: asString(record.timestamp),
+        trigger: asString(metadata.trigger),
+        preTokens: asNumber(metadata.preTokens),
+        postTokens: asNumber(metadata.postTokens),
+      })
+      const preserved = isRecord(metadata.preservedMessages) ? metadata.preservedMessages : {}
+      kept = new Set(asStrings(preserved.allUuids) ?? asStrings(preserved.uuids) ?? [])
+      since = attachments.length
+    }
+
+    // Nobody typed it, and it stands in for everything said before: injected, like the rest.
+    if (record.type === 'user' && record.isCompactSummary === true && isRecord(record.message)) {
+      const text = textOf(record.message.content)
+      if (text !== null) {
+        const value = { type: 'compact_summary', text, timestamp: record.timestamp, uuid }
+        attachments.push({ type: 'compact_summary', value, uuid })
+      }
     }
   }
 
-  const layers = foldLayers(attachments)
-  const chars = layers.reduce((total, layer) => total + layer.chars, 0)
+  const whole = fold(attachments)
+  const current =
+    compactions.length > 0
+      ? fold([
+          ...attachments.slice(0, since).filter((one) => one.uuid !== null && kept.has(one.uuid)),
+          ...attachments.slice(since),
+        ])
+      : null
   const stat = fs.statSync(file)
 
   return {
@@ -383,9 +449,9 @@ export const readSession = (home: string, slug: string, id: string): SessionPayl
     cwd: meta.cwd,
     isWorktree: looksLikeWorktree(meta.cwd ?? slug),
     memoryRoot: meta.memoryIndex ? path.dirname(meta.memoryIndex) : null,
-    layers,
-    chars,
-    tokens: Math.round(chars / 4),
+    ...whole,
+    compactions,
+    current,
     messages,
   }
 }

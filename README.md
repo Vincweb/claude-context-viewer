@@ -114,14 +114,19 @@ Sub-agents are named by the type they ran as and what they were asked to do.
 the memory index, the schema of every tool on offer — built-in and MCP apart — the deferred tool,
 skill and sub-agent listings, the MCP instructions, the hooks that injected context, the per-turn reminders, and everything the work itself dragged in: files read and edited,
 directory listings, plans, queued prompts. Grouped, sorted by weight, expandable down to the exact
-text. Startup context and what accumulated while working are counted separately.
+text. Startup context and what accumulated while working are counted separately. A session that was
+compacted opens on what is in context now — the stack injected again after the last compaction, its
+summary and whatever was added since — and can be switched to everything it loaded from the start.
+The size of the context before and after that compaction is shown too, as the API measured it.
 
 ## Where the data comes from
 
 `~/.claude/projects/<slug>/<session>.jsonl`. Each session's `attachment` records are the layers,
 and one of them — `prompt_snapshot` — holds the system prompt itself and, under `tools`, the
 definition of every tool sent with it. The tool, skill, sub-agent and MCP listings are recorded as
-deltas — names added, names removed — and are summed back into what the session was offered. Beside the transcripts sit
+deltas — names added, names removed — and are summed back into what the session was offered. A
+`compact_boundary` record marks each compaction; its `compactMetadata` holds the measured token
+counts and the earlier records kept in context. Beside the transcripts sit
 `memory/` and, for a session that needed them, a subdirectory of its own holding
 `subagents/agent-*.jsonl`, `tool-results/`, `workflows/` and any artifact it published.
 

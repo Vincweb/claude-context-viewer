@@ -140,3 +140,80 @@ test('a recent session counts the schemas of the tools it was offered', () => {
     ['prompt_snapshot', 'mcp_tool_schemas', 'tool_schemas', 'deferred_tools_delta'],
   )
 })
+
+const read = (filename: string, content: string, uuid: string) =>
+  record({
+    type: 'attachment',
+    uuid,
+    attachment: { type: 'file', filename, content: { file: { content } } },
+  })
+
+const boundary = (compactMetadata?: Record<string, unknown>) =>
+  record({ type: 'system', subtype: 'compact_boundary', uuid: 'boundary', compactMetadata })
+
+const COMPACTED = '-Users-me-compacted'
+const TWICE = '00000000-0000-4000-8000-000000000004'
+const compacted = fixture({
+  [`projects/${COMPACTED}/${NEW}.jsonl`]:
+    prompt('hello', '2026-10-14T00:00:00.000Z', '/Users/me/compacted') +
+    read('/a', 'before', 'a') +
+    record({
+      type: 'attachment',
+      uuid: 'kept',
+      attachment: { type: 'hook_additional_context', hookName: 'hook', content: ['still here'] },
+    }) +
+    boundary({
+      trigger: 'manual',
+      preTokens: 900_000,
+      postTokens: 18_000,
+      preservedMessages: { uuids: ['kept'], allUuids: ['kept'] },
+    }) +
+    record({
+      type: 'user',
+      uuid: 'summary',
+      isCompactSummary: true,
+      message: { role: 'user', content: 'This session is being continued.' },
+    }) +
+    read('/b', 'after', 'b'),
+  [`projects/${COMPACTED}/${TWICE}.jsonl`]:
+    read('/a', 'first', 'a') +
+    boundary({ trigger: 'auto' }) +
+    read('/b', 'second', 'b') +
+    boundary() +
+    read('/c', 'third', 'c'),
+})
+
+const files = (layers: { type: string; blocks: { key: string }[] }[] | undefined) =>
+  layers?.find((layer) => layer.type === 'file')?.blocks.map((block) => block.key)
+
+test('in context now starts at the last compaction, with what it kept', () => {
+  const session = readSession(compacted, COMPACTED, NEW)
+  assert.deepEqual(files(session?.layers), ['/a', '/b'])
+  assert.deepEqual(files(session?.current?.layers), ['/b'])
+  assert.deepEqual(
+    session?.current?.layers.map((layer) => layer.type),
+    ['hook_additional_context', 'compact_summary', 'file'],
+  )
+  assert.deepEqual(session?.compactions, [
+    { at: null, trigger: 'manual', preTokens: 900_000, postTokens: 18_000 },
+  ])
+})
+
+test('a compaction recorded without its metadata still starts the context over', () => {
+  const session = readSession(compacted, COMPACTED, TWICE)
+  assert.equal(session?.compactions.length, 2)
+  assert.deepEqual(session?.compactions[1], {
+    at: null,
+    trigger: null,
+    preTokens: null,
+    postTokens: null,
+  })
+  assert.deepEqual(files(session?.current?.layers), ['/c'])
+  assert.deepEqual(files(session?.layers), ['/a', '/b', '/c'])
+})
+
+test('a session never compacted has no separate view of the present', () => {
+  const session = readSession(recent, RECENT, NEW)
+  assert.equal(session?.current, null)
+  assert.deepEqual(session?.compactions, [])
+})

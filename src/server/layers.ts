@@ -54,6 +54,8 @@ const KNOWN: Record<string, { label: string; group: LayerGroup }> = {
   plan_mode: { label: 'Plan mode', group: 'runtime' },
   plan_mode_exit: { label: 'Plan mode exit', group: 'runtime' },
   plan_file_reference: { label: 'Plan file', group: 'runtime' },
+  // Not an attachment: the summary a compaction leaves in place of the conversation.
+  compact_summary: { label: 'Compaction summary', group: 'runtime' },
 }
 
 /**
@@ -99,6 +101,7 @@ const ACCUMULATES = new Set([
   'compact_file_reference',
   'plan_file_reference',
   'queued_command',
+  'compact_summary',
 ])
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -261,6 +264,13 @@ const blocksFor = (type: string, attachment: Record<string, unknown>): LayerBloc
     const full = asString(attachment.filename)
     const where = asString(attachment.displayPath) ?? full ?? 'tool result'
     return [block(where, full ?? '', full ?? where)]
+  }
+
+  // Every compaction writes a summary of its own; they share their opening line.
+  if (type === 'compact_summary') {
+    const text = asString(attachment.text) ?? ''
+    const when = asString(attachment.timestamp) ?? 'summary'
+    return [block(when, text, asString(attachment.uuid) ?? when)]
   }
 
   if (type === 'queued_command') {

@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import type { Layer } from '../../shared/types'
 import { projectPath } from '../../shared/routes'
+import { cx } from '../cx'
 import { bytes, tokens, truncate, useWhen } from '../format'
 import { GROUPS } from '../groups'
 import { useT } from '../i18n'
@@ -97,15 +99,22 @@ export const SessionView = ({ home, slug, id }: { home: string; slug: string; id
   const t = useT()
   const when = useWhen()
   const { data, error, isPending } = useSession(home, slug, id)
+  // A compacted session is two answers: what is in context now, and everything it ever loaded.
+  // The first is the prompt stack the stats are named for, so it is the one shown first.
+  const [scope, setScope] = useState<'current' | 'whole'>('current')
 
   if (isPending) return <Loading what={t.session.loading} />
   if (error) return <Failed error={error} />
 
-  const widest = Math.max(...data.layers.map((layer) => layer.chars), 1)
+  const shown = scope === 'current' && data.current ? data.current : data
+  const last = data.compactions[data.compactions.length - 1]
+  const measured = (value: number | null | undefined) => (value == null ? null : tokens(value))
+
+  const widest = Math.max(...shown.layers.map((layer) => layer.chars), 1)
   // The prompt stack and what the work itself dragged in are two different claims, and lumping
   // them together would let a session that read a lot of files look like a heavy prompt. No timing
   // is implied either way: a nested CLAUDE.md is part of the stack but arrives mid-session.
-  const startup = data.layers
+  const startup = shown.layers
     .filter((layer) => layer.group !== 'runtime')
     .reduce((sum, layer) => sum + layer.tokens, 0)
 
@@ -135,17 +144,52 @@ export const SessionView = ({ home, slug, id }: { home: string; slug: string; id
 
       <Rise index={1}>
         <Panel className="mb-7 p-5">
+          {data.current && (
+            <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line pb-4">
+              <div
+                role="group"
+                aria-label={t.session.scope}
+                className="flex shrink-0 rounded-full border border-line bg-panel p-0.5"
+              >
+                {(['current', 'whole'] as const).map((one) => (
+                  <button
+                    key={one}
+                    type="button"
+                    aria-pressed={scope === one}
+                    onClick={() => setScope(one)}
+                    className={cx(
+                      'rounded-full px-3 py-0.5 font-medium transition-colors',
+                      scope === one ? 'bg-text text-bg' : 'text-muted hover:text-text',
+                    )}
+                  >
+                    {t.session.scopes[one]}
+                  </button>
+                ))}
+              </div>
+              <span className="min-w-60 flex-1">
+                <Muted>
+                  {t.session.compacted(
+                    data.compactions.length,
+                    last?.trigger ?? null,
+                    measured(last?.preTokens),
+                    measured(last?.postTokens),
+                  )}
+                </Muted>
+              </span>
+            </div>
+          )}
+
           <div className="mb-5 flex flex-wrap gap-x-10 gap-y-4">
             <Stat value={`≈${tokens(startup)}`} label={t.session.statStack} />
-            <Stat value={`≈${tokens(data.tokens - startup)}`} label={t.session.statRuntime} />
-            <Stat value={data.layers.length} label={t.session.statLayers} />
+            <Stat value={`≈${tokens(shown.tokens - startup)}`} label={t.session.statRuntime} />
+            <Stat value={shown.layers.length} label={t.session.statLayers} />
             <Stat
               value={`${data.messages.user} / ${data.messages.assistant}`}
               label={t.session.statMessages}
             />
           </div>
 
-          <StackedBar layers={data.layers} total={data.tokens} />
+          <StackedBar layers={shown.layers} total={shown.tokens} />
 
           <p className="mt-5 border-t border-line pt-3 text-muted">
             {t.session.lowerBound}
@@ -163,7 +207,7 @@ export const SessionView = ({ home, slug, id }: { home: string; slug: string; id
 
       <div className="space-y-6">
         {GROUPS.map((group, groupIndex) => {
-          const layers = data.layers.filter((layer) => layer.group === group.key)
+          const layers = shown.layers.filter((layer) => layer.group === group.key)
           if (layers.length === 0) return null
           const total = layers.reduce((sum, layer) => sum + layer.tokens, 0)
           return (

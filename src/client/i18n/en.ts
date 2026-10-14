@@ -556,6 +556,24 @@ export const en = {
     statMessages: 'prompts / replies',
     lowerBound:
       'A lower bound: the transcript records these layers, tool schemas included, but not the wrapping Claude Code puts around each of them. Counts are characters over four. Some of the stack arrives mid-session — a nested CLAUDE.md loads the first time Claude touches a file under it.',
+    scope: 'Which layers to count',
+    scopes: { current: 'In context now', whole: 'Whole session' },
+    compacted: (
+      count: number,
+      trigger: string | null,
+      before: string | null,
+      after: string | null,
+    ) =>
+      [
+        `Compacted ${count === 1 ? 'once' : `${count} times`}`,
+        trigger === 'auto'
+          ? ' — the last time automatically'
+          : trigger === 'manual'
+            ? ' — the last time by hand'
+            : '',
+        before && after ? `, from ${before} to ${after} tokens as measured by the API` : '',
+        '. The whole stack was injected again from there.',
+      ].join(''),
     memoryFrom: 'Memory read from ',
     worktreeShared: ' — a worktree, so that folder is shared with its checkout.',
     sessionId: (id: string) => `session ${id}`,
@@ -602,6 +620,7 @@ export const en = {
       plan_mode: 'Plan mode',
       plan_mode_exit: 'Plan mode exit',
       plan_file_reference: 'Plan file',
+      compact_summary: 'Compaction summary',
     } as Record<string, string>,
   },
 }
