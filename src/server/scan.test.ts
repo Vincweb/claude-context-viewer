@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'fs'
 import path from 'path'
 import { test } from 'node:test'
-import { readProjectMemory, readSessions, scanProjects } from './scan'
+import { readProjectMemory, readSession, readSessions, scanProjects } from './scan'
 import { fixture, record } from './testing'
 
 const CHECKOUT = '-Users-me-app'
@@ -92,4 +92,51 @@ test('sessions are described from their first records, newest first', () => {
 test('an unknown project is null, not an error', () => {
   assert.equal(readSessions(home, 'nope'), null)
   assert.equal(readProjectMemory(home, '../..'), null)
+})
+
+const attachment = (value: Record<string, unknown>) =>
+  record({ type: 'attachment', attachment: value })
+
+/** The definition a snapshot lists for one tool, as the API receives it. */
+const definition = (name: string) => ({
+  name,
+  description: 'x'.repeat(400),
+  input_schema: { type: 'object', properties: { path: { type: 'string' } } },
+})
+
+const RECENT = '-Users-me-recent'
+const recent = fixture({
+  [`projects/${RECENT}/${NEW}.jsonl`]:
+    prompt('hello', '2026-10-14T00:00:00.000Z', '/Users/me/recent') +
+    attachment({ type: 'prompt_snapshot', systemPrompt: ['You are Claude.'] }) +
+    attachment({
+      type: 'prompt_snapshot',
+      systemPrompt: ['You are Claude.'],
+      cliPrefix: 'You are Claude Code.',
+      tools: [
+        { name: 'Read', description: 'x'.repeat(400), schema: definition('Read') },
+        {
+          name: 'mcp__docs__guide',
+          description: 'x'.repeat(400),
+          schema: definition('mcp__docs__guide'),
+          server: 'docs',
+        },
+      ],
+    }) +
+    attachment({ type: 'deferred_tools_delta', addedNames: ['WebFetch'], removedNames: [] }) +
+    attachment({ type: 'deferred_tools_delta', addedNames: ['mcp__late__one'], removedNames: [] }),
+})
+
+test('a recent session counts the schemas of the tools it was offered', () => {
+  const session = readSession(recent, RECENT, NEW)
+  const schemas = ['Read', 'mcp__docs__guide']
+    .map((name) => JSON.stringify(definition(name)).length)
+    .reduce((total, one) => total + one)
+  const names = 'WebFetch'.length + 'mcp__late__one'.length
+  const prompt = 'You are Claude Code.'.length + 'You are Claude.'.length
+  assert.equal(session?.chars, schemas + names + prompt)
+  assert.deepEqual(
+    session?.layers.map((layer) => layer.type),
+    ['prompt_snapshot', 'mcp_tool_schemas', 'tool_schemas', 'deferred_tools_delta'],
+  )
 })

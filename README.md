@@ -111,15 +111,17 @@ workflow runs, published artifacts, hook output and the desktop app's own marker
 Sub-agents are named by the type they ran as and what they were asked to do.
 
 **Session layers.** The system prompt block by block, the `CLAUDE.md` and nested `CLAUDE.md` files,
-the memory index, the tool and skill listings, the MCP instructions, the hooks that injected
-context, the per-turn reminders, and everything the work itself dragged in: files read and edited,
+the memory index, the schema of every tool on offer — built-in and MCP apart — the deferred tool,
+skill and sub-agent listings, the MCP instructions, the hooks that injected context, the per-turn reminders, and everything the work itself dragged in: files read and edited,
 directory listings, plans, queued prompts. Grouped, sorted by weight, expandable down to the exact
 text. Startup context and what accumulated while working are counted separately.
 
 ## Where the data comes from
 
 `~/.claude/projects/<slug>/<session>.jsonl`. Each session's `attachment` records are the layers,
-and one of them — `prompt_snapshot` — holds the system prompt itself. Beside the transcripts sit
+and one of them — `prompt_snapshot` — holds the system prompt itself and, under `tools`, the
+definition of every tool sent with it. The tool, skill, sub-agent and MCP listings are recorded as
+deltas — names added, names removed — and are summed back into what the session was offered. Beside the transcripts sit
 `memory/` and, for a session that needed them, a subdirectory of its own holding
 `subagents/agent-*.jsonl`, `tool-results/`, `workflows/` and any artifact it published.
 
@@ -140,10 +142,11 @@ time fades in. All of it is skipped under `prefers-reduced-motion`.
 Token counts are characters over four, and every total here is a lower bound. Two gaps are worth
 knowing about before reading too much into a number.
 
-- **The schemas of the tools on offer are not in the transcript.** The system prompt snapshot holds
-  the prose blocks and no tool definitions at all — verified by searching it for parameter names.
-  The capabilities group counts the listings, names and MCP instructions and sub-agent descriptions,
-  rather than the schemas behind them, which in practice weigh more than everything else here.
+- **Each layer is recorded bare.** The tool schemas are in the transcript — the `tools` key of the
+  `prompt_snapshot` record, which this counts; only its `systemPrompt` array has none. What is
+  missing is the wrapping Claude Code puts around a layer before sending it — the reminder tags, the
+  sentence that introduces a listing — and the prose of the few layers recorded only as settings,
+  such as the advisor tool.
 - **Which individual memories were recalled is recorded nowhere.** The fixed cost of `MEMORY.md` is
   measurable; the memories that actually fired are not. They show up only when Claude opened one as
   a file, which lands in the runtime group like any other read.

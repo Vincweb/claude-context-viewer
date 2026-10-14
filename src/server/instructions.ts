@@ -192,6 +192,21 @@ export const readInstructionSources = ({
       })
     }
 
+    // Claude Code reads an `AGENTS.md` instead when the project has no `CLAUDE.md` of its own.
+    const agents = path.join(cwd, 'AGENTS.md')
+    if (!fs.existsSync(path.join(cwd, 'CLAUDE.md')) && fs.existsSync(agents)) {
+      const size = sizeOf(agents)
+      add({
+        kind: 'project',
+        path: agents,
+        label: relative(agents),
+        status: size === 0 ? 'empty' : 'start',
+        chars: size,
+        seenInSessions: seenCount(agents),
+        note: 'read in place of the missing CLAUDE.md',
+      })
+    }
+
     const nested = walkForNested(cwd)
     truncated = nested.truncated
     for (const file of nested.found) {
